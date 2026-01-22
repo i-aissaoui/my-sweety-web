@@ -1,10 +1,8 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
-import { kv } from '@vercel/kv';
 
 const DATA_PATH = path.join(process.cwd(), 'menu-data.json');
-const KV_KEY = 'my_sweety_menu_data';
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -12,27 +10,18 @@ const corsHeaders = {
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
-const isVercel = process.env.VERCEL === '1' || !!process.env.KV_URL;
-
 export async function OPTIONS() {
     return NextResponse.json({}, { headers: corsHeaders });
 }
 
 export async function GET() {
     try {
-        if (isVercel) {
-            const data = await kv.get(KV_KEY);
-            return NextResponse.json(data || { menu: [] }, { headers: corsHeaders });
-        }
-
-        // Local Fallback
         if (!fs.existsSync(DATA_PATH)) {
             return NextResponse.json({ menu: [] }, { headers: corsHeaders });
         }
         const data = fs.readFileSync(DATA_PATH, 'utf8');
         return NextResponse.json(JSON.parse(data), { headers: corsHeaders });
     } catch (error) {
-        console.error('Fetch error:', error);
         return NextResponse.json({ error: 'Failed to read menu data' }, { status: 500, headers: corsHeaders });
     }
 }
@@ -47,19 +36,10 @@ export async function POST(request: Request) {
         }
 
         const body = await request.json();
-
-        if (isVercel) {
-            await kv.set(KV_KEY, body);
-            console.log('--- SYNC SAVED TO KV ---');
-            return NextResponse.json({ message: 'Menu updated successfully (KV)' }, { headers: corsHeaders });
-        }
-
-        // Local Fallback
         fs.writeFileSync(DATA_PATH, JSON.stringify(body, null, 2));
-        console.log('--- SYNC SAVED TO FILE ---');
-        return NextResponse.json({ message: 'Menu updated successfully (File)' }, { headers: corsHeaders });
+
+        return NextResponse.json({ message: 'Menu updated successfully' }, { headers: corsHeaders });
     } catch (error) {
-        console.error('Sync error:', error);
         return NextResponse.json({ error: 'Failed to update menu' }, { status: 500, headers: corsHeaders });
     }
 }
