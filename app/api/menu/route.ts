@@ -12,7 +12,8 @@ const corsHeaders = {
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
-const isVercel = process.env.VERCEL === '1' || !!process.env.KV_URL;
+const isKVReady = !!process.env.KV_REST_API_URL && !!process.env.KV_REST_API_TOKEN;
+const isVercel = process.env.VERCEL === '1';
 
 export async function OPTIONS() {
     return NextResponse.json({}, { headers: corsHeaders });
@@ -21,6 +22,13 @@ export async function OPTIONS() {
 export async function GET() {
     try {
         if (isVercel) {
+            if (!isKVReady) {
+                console.error('CRITICAL: Vercel KV is NOT connected. Please connect KV in the Vercel Storage tab.');
+                return NextResponse.json({
+                    error: 'Database not connected',
+                    details: 'Vercel KV environment variables are missing. Go to Vercel Dashboard -> Storage -> Connect KV.'
+                }, { status: 500, headers: corsHeaders });
+            }
             const data = await kv.get(KV_KEY);
             return NextResponse.json(data || { menu: [] }, { headers: corsHeaders });
         }
@@ -49,6 +57,12 @@ export async function POST(request: Request) {
         const body = await request.json();
 
         if (isVercel) {
+            if (!isKVReady) {
+                return NextResponse.json({
+                    error: 'Database not connected',
+                    details: 'Vercel KV environment variables are missing. Go to Vercel Dashboard -> Storage -> Connect KV.'
+                }, { status: 500, headers: corsHeaders });
+            }
             await kv.set(KV_KEY, body);
             console.log('--- SYNC SAVED TO KV ---');
             return NextResponse.json({ message: 'Menu updated successfully (KV)' }, { headers: corsHeaders });
